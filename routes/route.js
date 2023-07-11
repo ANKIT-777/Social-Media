@@ -1,6 +1,9 @@
 
 const express = require('express');
 const router = express.Router();
+const express = require('express');
+const { body, validationResult } = require('express-validator');
+
 const User = require('../models/userModel');
 
 
@@ -156,6 +159,95 @@ router.post('/:userId/posts', async (req, res) => {
       res.status(500).json({ message: error.message });
     }
   });
+
+  // Create a new comment on a specific post
+router.post('/posts/:postId/comments', async (req, res) => {
+    try {
+      const { postId } = req.params;
+      const { content } = req.body;
+  
+      const comment = await Comment.create({
+        content,
+        post: postId,
+        commenter: req.user._id  // Assuming you have a middleware to authenticate the user and store their ID in req.user
+      });
+  
+      const post = await Post.findById(postId);
+      post.comments.push(comment._id);
+      await post.save();
+  
+      res.status(201).json(comment);
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Retrieve all comments for a specific post
+  router.get('/posts/:postId/comments', async (req, res) => {
+    try {
+      const { postId } = req.params;
+      const post = await Post.findById(postId).populate('comments');
+      if (post) {
+        res.json(post.comments);
+      } else {
+        res.status(404).json({ message: 'Post not found' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Retrieve details of a specific comment by its ID
+  router.get('/comments/:commentId', async (req, res) => {
+    try {
+      const { commentId } = req.params;
+      const comment = await Comment.findById(commentId);
+      if (comment) {
+        res.json(comment);
+      } else {
+        res.status(404).json({ message: 'Comment not found' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
+  // Update the content of an existing comment
+  router.patch('/comments/:commentId', async (req, res) => {
+    try {
+      const { commentId } = req.params;
+      const { content } = req.body;
+      const comment = await Comment.findByIdAndUpdate(commentId, { content }, { new: true });
+      if (comment) {
+        res.json(comment);
+      } else {
+        res.status(404).json({ message: 'Comment not found' });
+      }
+    } catch (error) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+  
+  // Delete a comment from the system
+  router.delete('/comments/:commentId', async (req, res) => {
+    try {
+      const { commentId } = req.params;
+      const comment = await Comment.findByIdAndDelete(commentId);
+      if (comment) {
+        // Remove the comment ID from the associated post's comments array
+        const post = await Post.findById(comment.post);
+        post.comments.pull(commentId);
+        await post.save();
+  
+        res.json({ message: 'Comment deleted' });
+      } else {
+        res.status(404).json({ message: 'Comment not found' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+  
   
 
 module.exports = router;
